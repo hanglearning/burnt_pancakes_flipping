@@ -11,7 +11,7 @@ num_of_pancakes = int(len(input_pancakes)/2)
 # Basic node unit for the search graph
 class PancakesNode:
     
-    def __init__(self, parent=None, children=[], cost=0, heuristic=0,current_pancakes=None, from_spatula=None):
+    def __init__(self, parent=None, children=[], cost=0, heuristic=0,current_pancakes=None, from_spatula=None, current_depth=0):
         self.parent = parent
         self.children = children
         self.cost = cost
@@ -19,6 +19,7 @@ class PancakesNode:
         self.current_pancakes = current_pancakes
         # assign 1, 2, 3 or 4, indicating how were pancakes flipped to get to this state node
         self.from_spatula = from_spatula
+        self.current_depth = current_depth
 
     # check if the goal condition is met, i.e. pancakes in order
     def check_goal(self):
@@ -75,7 +76,8 @@ class PancakesGraph:
                         cost=pancakes_node.cost+flip_at,
                         heuristic=pancakes_node.evaluate_heuristic(flipped_pancakes),
                         current_pancakes=flipped_pancakes,
-                        from_spatula=flip_at
+                        from_spatula=flip_at,
+                        current_depth=pancakes_node.current_depth+1
                         )
                 pancakes_node.children.append(expanded_node)
                 self.check_fringe.add(flipped_pancakes)
@@ -110,12 +112,12 @@ class PancakesGraph:
             print(goal_node.current_pancakes)
 
     # tie breaking mechanism by converting sequnce to 8-digit int and choose the maximum one
-    def break_tie(self, fringe_to_check):
-        if len(fringe_to_check) == 1:
-            return fringe_to_check[0]
+    def break_tie(self, candidates_to_check):
+        if len(candidates_to_check) == 1:
+            return candidates_to_check[0]
         else:
             eight_digits = []
-            for node in fringe_to_check:
+            for node in candidates_to_check:
                 eight_digit = []
                 for char in node.current_pancakes:
                     if char == 'w':
@@ -125,14 +127,29 @@ class PancakesGraph:
                     else:
                         eight_digit.append(str(char))
                 eight_digits.append(int("".join(eight_digit)))
-            return fringe_to_check[eight_digits.index(max(eight_digits))]
+            return candidates_to_check[eight_digits.index(max(eight_digits))]
 
     # Starting point of BFS search
     def BFS(self):
         # first check if fringe still has nodes to expand
         while len(self.nodes_fringe) != 0:
-            # expand the node by tie-breaking if there is more than one node in the fringe
-            node_to_expand = self.break_tie(self.nodes_fringe)
+            if len(self.nodes_fringe) == 1:
+                node_to_expand = self.nodes_fringe[0]
+            else:
+                # BFS chooses the node with the minimum depth to expand.
+                # It will use the customized tie-breaking mechanism to choose the node to expand if there is more than one node that has the same minimum depth.
+                candidate_nodes = []
+                nodes_depths = []
+                # extract the min depth among all nodes in the fringe
+                for node in self.nodes_fringe:
+                    nodes_depths.append(node.current_depth)
+                min_depth = min(nodes_depths)
+                # add the nodes with the mon depth to the candidate_nodes list
+                for node_iter in range(len(nodes_depths)):
+                    if min_depth == nodes_depths[node_iter]:
+                        candidate_nodes.append(self.nodes_fringe[node_iter])
+                # expand the node by tie-breaking
+                node_to_expand = self.break_tie(candidate_nodes)
             # Before expanding, check if this node is the goal node; print the path and end the program if this is the goal node
             if node_to_expand.check_goal() == False:
                 self.expand_flip(node_to_expand)
@@ -147,7 +164,7 @@ class PancakesGraph:
             if len(self.nodes_fringe) == 1:
                 node_to_expand = self.nodes_fringe[0]
             else:
-                # Compared to BFS, A* chooses the node with the minimum g(n)+h(n) to expand rather than using a customized tie-breaking mechanism. However, if there is more than one node that has the same minimum of g(n)+h(n), then use the customized tie-breaking to choose a node to expand.
+                # Compared to BFS, A* chooses the node with the minimum g(n)+h(n) to expand rather than the minimum depth, and uses the customized tie-breaking to choose the node to expand if there is more than one node that has the same minimum of g(n)+h(n). 
                 candidate_nodes = []
                 nodes_cost_heuristic_sum = []
                 for node in self.nodes_fringe:
